@@ -1,0 +1,24 @@
+{
+  "name": "website",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubinzhao21/beat-detection.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/yubinzhao21/beat-detection/issues"
+  },
+  "homepage": "https://github.com/yubinzhao21/beat-detection#readme",
+  "dependencies": {
+    "express": "^4.22.1"
+  }
+}
