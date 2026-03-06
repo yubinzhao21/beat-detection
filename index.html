@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beat Detection & Enhancement</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  color: #e94560;
+}
+
+.container {
+  width: 100%;
+  max-width: 900px;
+}
+
+.upload-area {
+  border: 2px dashed #e94560;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 20px;
+}
+
+.upload-area:hover, .upload-area.dragover {
+  background: rgba(233, 69, 96, 0.1);
+}
+
+.upload-area input { display: none; }
+
+.upload-area p { font-size: 1.1rem; color: #aaa; }
+.upload-area .hint { font-size: 0.85rem; color: #666; margin-top: 8px; }
+
+.panel {
+  background: #16213e;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.panel-title {
+  font-size: 0.9rem;
+  color: #e94560;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+#waveformCanvas {
+  width: 100%;
+  height: 180px;
+  background: #0f3460;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.info-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.bpm-display {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #e94560;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+button {
+  background: #e94560;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover { background: #c73652; }
+button:disabled { background: #555; cursor: not-allowed; }
+
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.slider-group label {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  color: #aaa;
+}
+
+.slider-group input[type="range"] {
+  flex: 1;
+  accent-color: #e94560;
+}
+
+.slider-value {
+  font-size: 0.85rem;
+  color: #e94560;
+  min-width: 35px;
+  text-align: right;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 4px;
+  background: #0f3460;
+  border-radius: 2px;
+  margin-top: 10px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #e94560;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.1s;
+}
+
+.status {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-top: 8px;
+}
+
+.hidden { display: none; }
+
+.threshold-controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Beat list table */
+.beat-list-container {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 12px;
+  border-radius: 8px;
+  border: 1px solid #0f3460;
+}
+
+.beat-list-container::-webkit-scrollbar { width: 6px; }
+.beat-list-container::-webkit-scrollbar-track { background: #0f3460; }
+.beat-list-container::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
+
+.beat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.beat-table thead {
+  position: sticky;
+  top: 0;
+  background: #0f3460;
+  z-index: 1;
+}
+
+.beat-table th, .beat-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 52, 96, 0.5);
+}
+
+.beat-table th {
+  color: #e94560;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.beat-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.beat-table tbody tr:hover {
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.beat-table tbody tr.active {
+  background: rgba(233, 69, 96, 0.25);
+}
+
+.beat-table tbody tr.disabled-beat {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.beat-table .beat-toggle {
+  width: 16px;
+  height: 16px;
+  accent-color: #e94560;
+  cursor: pointer;
+}
+
+.beat-table .beat-seek-btn {
+  background: transparent;
+  border: 1px solid #e94560;
+  color: #e94560;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.beat-table .beat-seek-btn:hover {
+  background: #e94560;
+  color: white;
+}
+
+.beat-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.beat-list-header .beat-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.beat-list-header button {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+}
+
+.beat-highlight {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e94560;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.beat-highlight.off {
+  background: #555;
+}
+
+.current-beat-indicator {
+  font-size: 1rem;
+  color: #e94560;
+  font-weight: bold;
+  min-width: 120px;
+  text-align: center;
+  padding: 4px 8px;
+  background: rgba(233, 69, 96, 0.1);
+  border-radius: 6px;
+}
+</style>
+</head>
+<body>
+
+<h1>Beat Detection &amp; Enhancement</h1>
+
+<div class="container">
+  <!-- Upload -->
+  <div class="upload-area" id="uploadArea">
+    <p>点击或拖拽音频文件到这里</p>
+    <p class="hint">支持 MP3, WAV, OGG, FLAC</p>
+    <input type="file" id="fileInput" accept="audio/*">
+  </div>
+
+  <!-- Waveform -->
+  <div class="panel hidden" id="waveformPanel">
+    <div class="panel-title">波形 &amp; 节拍</div>
+    <canvas id="waveformCanvas"></canvas>
+    <div class="info-bar">
+      <span id="timeDisplay">0:00 / 0:00</span>
+      <span class="current-beat-indicator" id="currentBeatIndicator">-- / --</span>
+      <span>BPM: <span class="bpm-display" id="bpmDisplay">--</span></span>
+      <span id="beatCount">节拍数: --</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="panel hidden" id="controlsPanel">
+    <div class="panel-title">播放控制</div>
+    <div class="controls">
+      <button id="playBtn" disabled>播放</button>
+      <button id="stopBtn" disabled>停止</button>
+      <div class="slider-group">
+        <label>鼓声增强:</label>
+        <input type="range" id="drumSlider" min="0" max="100" value="0">
+        <span class="slider-value" id="drumValue">0%</span>
+      </div>
+    </div>
+    <div class="threshold-controls">
+      <div class="slider-group">
+        <label>检测灵敏度:</label>
+        <input type="range" id="thresholdSlider" min="10" max="200" value="60">
+        <span class="slider-value" id="thresholdValue">60%</span>
+      </div>
+      <button id="redetectBtn" disabled>重新检测</button>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="panel hidden" id="exportPanel">
+    <div class="panel-title">导出</div>
+    <div class="controls">
+      <button id="exportBtn" disabled>导出 WAV</button>
+      <span class="status" id="exportStatus"></span>
+    </div>
+  </div>
+
+  <!-- Beat List -->
+  <div class="panel hidden" id="beatListPanel">
+    <div class="beat-list-header">
+      <div class="panel-title" style="margin-bottom:0">节拍列表</div>
+      <div class="beat-actions">
+        <button id="selectAllBeats">全选</button>
+        <button id="deselectAllBeats">取消全选</button>
+        <button id="addBeatBtn">手动添加</button>
+      </div>
+    </div>
+    <div class="beat-list-container">
+      <table class="beat-table">
+        <thead>
+          <tr>
+            <th>启用</th>
+            <th>#</th>
+            <th>时间</th>
+            <th>间隔</th>
+            <th>局部BPM</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="beatTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="status" id="globalStatus"></div>
+</div>
+
+<script>
+(() => {
+  // --- State ---
+  let audioContext = null;
+  let originalBuffer = null;
+  // Each beat: { time: number, enabled: boolean }
+  let beats = [];
+  let bpm = 0;
+  let isPlaying = false;
+  let sourceNode = null;
+  let gainNode = null;
+  let startTime = 0;
+  let pauseOffset = 0;
+  let animFrameId = null;
+  let currentBeatIndex = -1;
+
+  // --- DOM ---
+  const uploadArea = document.getElementById('uploadArea');
+  const fileInput = document.getElementById('fileInput');
+  const waveformPanel = document.getElementById('waveformPanel');
+  const controlsPanel = document.getElementById('controlsPanel');
+  const exportPanel = document.getElementById('exportPanel');
+  const beatListPanel = document.getElementById('beatListPanel');
+  const canvas = document.getElementById('waveformCanvas');
+  const ctx = canvas.getContext('2d');
+  const timeDisplay = document.getElementById('timeDisplay');
+  const bpmDisplay = document.getElementById('bpmDisplay');
+  const beatCountEl = document.getElementById('beatCount');
+  const currentBeatIndicator = document.getElementById('currentBeatIndicator');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const drumSlider = document.getElementById('drumSlider');
+  const drumValue = document.getElementById('drumValue');
+  const thresholdSlider = document.getElementById('thresholdSlider');
+  const thresholdValue = document.getElementById('thresholdValue');
+  const redetectBtn = document.getElementById('redetectBtn');
+  const progressBar = document.getElementById('progressBar');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportStatus = document.getElementById('exportStatus');
+  const globalStatus = document.getElementById('globalStatus');
+  const beatTableBody = document.getElementById('beatTableBody');
+  const selectAllBeats = document.getElementById('selectAllBeats');
+  const deselectAllBeats = document.getElementById('deselectAllBeats');
+  const addBeatBtn = document.getElementById('addBeatBtn');
+
+  // --- Upload ---
+  uploadArea.addEventListener('click', () => fileInput.click());
+  uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  async function handleFile(file) {
+    globalStatus.textContent = '正在解码音频...';
+    stopPlayback();
+
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      originalBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      globalStatus.textContent = '正在检测节拍...';
+
+      detectBeats();
+
+      waveformPanel.classList.remove('hidden');
+      controlsPanel.classList.remove('hidden');
+      exportPanel.classList.remove('hidden');
+      beatListPanel.classList.remove('hidden');
+      playBtn.disabled = false;
+      stopBtn.disabled = false;
+      redetectBtn.disabled = false;
+      exportBtn.disabled = false;
+
+      resizeCanvas();
+      drawWaveform();
+      renderBeatTable();
+      globalStatus.textContent = '就绪';
+    } catch (err) {
+      globalStatus.textContent = '解码失败: ' + err.message;
+    }
+  }
+
+  // --- Beat Detection ---
+  function detectBeats() {
+    const threshold = parseInt(thresholdSlider.value) / 100;
+    const channelData = originalBuffer.getChannelData(0);
+    const sampleRate = originalBuffer.sampleRate;
+
+    const frameSize = Math.round(sampleRate * 0.01);
+    const hopSize = Math.round(sampleRate * 0.005);
+    const numFrames = Math.floor((channelData.length - frameSize) / hopSize);
+
+    const energy = new Float32Array(numFrames);
+    const lpWindow = Math.round(sampleRate / 150);
+
+    for (let i = 0; i < numFrames; i++) {
+      const start = i * hopSize;
+      let sum = 0;
+      for (let j = 0; j < frameSize; j++) {
+        const idx = start + j;
+        let lpSum = 0;
+        const half = Math.min(Math.floor(lpWindow / 2), 8);
+        let cnt = 0;
+        for (let k = -half; k <= half; k++) {
+          const si = idx + k;
+          if (si >= 0 && si < channelData.length) {
+            lpSum += channelData[si];
+            cnt++;
+          }
+        }
+        const val = lpSum / cnt;
+        sum += val * val;
+      }
+      energy[i] = sum / frameSize;
+    }
+
+    const windowFrames = Math.round(0.5 / 0.005);
+    const localAvg = new Float32Array(numFrames);
+    let runSum = 0;
+    for (let i = 0; i < numFrames; i++) {
+      runSum += energy[i];
+      if (i >= windowFrames) runSum -= energy[i - windowFrames];
+      const count = Math.min(i + 1, windowFrames);
+      localAvg[i] = runSum / count;
+    }
+
+    const minBeatGap = 0.25;
+    const minGapFrames = Math.round(minBeatGap / 0.005);
+    const peaks = [];
+
+    for (let i = windowFrames; i < numFrames; i++) {
+      if (energy[i] > localAvg[i] * (1 + threshold * 2)) {
+        let isMax = true;
+        for (let d = 1; d <= 3 && isMax; d++) {
+          if (i - d >= 0 && energy[i] < energy[i - d]) isMax = false;
+          if (i + d < numFrames && energy[i] < energy[i + d]) isMax = false;
+        }
+        if (isMax) {
+          if (peaks.length === 0 || (i - peaks[peaks.length - 1]) >= minGapFrames) {
+            peaks.push(i);
+          }
+        }
+      }
+    }
+
+    // Build beat objects with time and enabled flag
+    beats = peaks.map(f => ({ time: f * 0.005, enabled: true }));
+
+    // Estimate BPM from median inter-beat interval
+    computeBPM();
+
+    bpmDisplay.textContent = bpm || '--';
+    beatCountEl.textContent = '节拍数: ' + beats.length;
+    currentBeatIndex = -1;
+    currentBeatIndicator.textContent = '-- / ' + beats.length;
+  }
+
+  function computeBPM() {
+    const enabledBeats = beats.filter(b => b.enabled);
+    if (enabledBeats.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < enabledBeats.length; i++) {
+        intervals.push(enabledBeats[i].time - enabledBeats[i - 1].time);
+      }
+      intervals.sort((a, b) => a - b);
+      const medianInterval = intervals[Math.floor(intervals.length / 2)];
+      bpm = Math.round(60 / medianInterval);
+      if (bpm > 200) bpm = Math.round(bpm / 2);
+      if (bpm < 50) bpm = Math.round(bpm * 2);
+    } else {
+      bpm = 0;
+    }
+    bpmDisplay.textContent = bpm || '--';
+  }
+
+  function getEnabledBeatTimes() {
+    return beats.filter(b => b.enabled).map(b => b.time);
+  }
+
+  redetectBtn.addEventListener('click', () => {
+    if (!originalBuffer) return;
+    detectBeats();
+    drawWaveform();
+    renderBeatTable();
+  });
+
+  thresholdSlider.addEventListener('input', () => {
+    thresholdValue.textContent = thresholdSlider.value + '%';
+  });
+
+  // --- Beat Table ---
+  function renderBeatTable() {
+    beatTableBody.innerHTML = '';
+    for (let i = 0; i < beats.length; i++) {
+      const beat = beats[i];
+      const interval = i > 0 ? (beat.time - beats[i - 1].time) : 0;
+      const localBpm = interval > 0 ? Math.round(60 / interval) : '--';
+
+      const tr = document.createElement('tr');
+      tr.dataset.index = i;
+      if (!beat.enabled) tr.classList.add('disabled-beat');
+      if (i === currentBeatIndex) tr.classList.add('active');
+
+      tr.innerHTML =
+        '<td><input type="checkbox" class="beat-toggle" ' + (beat.enabled ? 'checked' : '') + '></td>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + formatTimePrecise(beat.time) + '</td>' +
+        '<td>' + (interval > 0 ? interval.toFixed(3) + 's' : '--') + '</td>' +
+        '<td>' + localBpm + '</td>' +
+        '<td><button class="beat-seek-btn">定位</button> <button class="beat-seek-btn beat-delete-btn" style="border-color:#ff6b6b;color:#ff6b6b">删除</button></td>';
+
+      // Toggle beat enabled
+      tr.querySelector('.beat-toggle').addEventListener('change', function(e) {
+        e.stopPropagation();
+        beats[i].enabled = this.checked;
+        tr.classList.toggle('disabled-beat', !this.checked);
+        computeBPM();
+        drawWaveform();
+        updateBeatCountDisplay();
+      });
+
+      // Seek to beat
+      tr.querySelector('.beat-seek-btn').addEventListener('click', function(e) {
+        e.stopPropagation();
+        seekToBeat(i);
+      });
+
+      // Delete beat
+      tr.querySelector('.beat-delete-btn').addEventListener('click', function(e) {
+        e.stopPropagation();
+        beats.splice(i, 1);
+        computeBPM();
+        drawWaveform();
+        renderBeatTable();
+        updateBeatCountDisplay();
+      });
+
+      beatTableBody.appendChild(tr);
+    }
+  }
+
+  function updateBeatCountDisplay() {
+    const enabled = beats.filter(b => b.enabled).length;
+    beatCountEl.textContent = '节拍数: ' + enabled + ' / ' + beats.length;
+  }
+
+  function seekToBeat(index) {
+    if (!originalBuffer || index < 0 || index >= beats.length) return;
+    const seekTime = beats[index].time;
+    if (isPlaying) {
+      stopPlayback();
+      pauseOffset = seekTime;
+      startPlayback();
+    } else {
+      pauseOffset = seekTime;
+      drawWaveform(pauseOffset);
+      updateTimeDisplay(pauseOffset);
+    }
+    highlightBeatRow(index);
+  }
+
+  function highlightBeatRow(index) {
+    currentBeatIndex = index;
+    const rows = beatTableBody.querySelectorAll('tr');
+    rows.forEach(r => r.classList.remove('active'));
+    if (index >= 0 && index < rows.length) {
+      rows[index].classList.add('active');
+      rows[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    currentBeatIndicator.textContent = (index >= 0 ? (index + 1) : '--') + ' / ' + beats.length;
+  }
+
+  // Select/deselect all
+  selectAllBeats.addEventListener('click', () => {
+    beats.forEach(b => b.enabled = true);
+    computeBPM();
+    drawWaveform();
+    renderBeatTable();
+    updateBeatCountDisplay();
+  });
+
+  deselectAllBeats.addEventListener('click', () => {
+    beats.forEach(b => b.enabled = false);
+    computeBPM();
+    drawWaveform();
+    renderBeatTable();
+    updateBeatCountDisplay();
+  });
+
+  // Manually add a beat at current playback position
+  addBeatBtn.addEventListener('click', () => {
+    if (!originalBuffer) return;
+    let time;
+    if (isPlaying) {
+      time = audioContext.currentTime - startTime;
+    } else {
+      time = pauseOffset;
+    }
+    // Insert in sorted order
+    const newBeat = { time: time, enabled: true };
+    let inserted = false;
+    for (let i = 0; i < beats.length; i++) {
+      if (beats[i].time > time) {
+        beats.splice(i, 0, newBeat);
+        inserted = true;
+        break;
+      }
+    }
+    if (!inserted) beats.push(newBeat);
+    computeBPM();
+    drawWaveform();
+    renderBeatTable();
+    updateBeatCountDisplay();
+  });
+
+  // --- Waveform Drawing ---
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * window.devicePixelRatio;
+    canvas.height = rect.height * window.devicePixelRatio;
+  }
+
+  function drawWaveform(currentTime) {
+    if (!originalBuffer) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const data = originalBuffer.getChannelData(0);
+    const duration = originalBuffer.duration;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw waveform
+    const step = Math.ceil(data.length / w);
+    ctx.beginPath();
+    ctx.strokeStyle = '#0f9b8e';
+    ctx.lineWidth = 1;
+
+    for (let x = 0; x < w; x++) {
+      const idx = Math.floor(x * data.length / w);
+      let min = 1, max = -1;
+      for (let j = 0; j < step && idx + j < data.length; j++) {
+        const val = data[idx + j];
+        if (val < min) min = val;
+        if (val > max) max = val;
+      }
+      const yMin = (1 - min) * h / 2;
+      const yMax = (1 - max) * h / 2;
+      ctx.moveTo(x, yMin);
+      ctx.lineTo(x, yMax);
+    }
+    ctx.stroke();
+
+    // Draw beat markers (enabled vs disabled)
+    for (let i = 0; i < beats.length; i++) {
+      const beat = beats[i];
+      const x = (beat.time / duration) * w;
+
+      if (beat.enabled) {
+        ctx.strokeStyle = 'rgba(233, 69, 96, 0.8)';
+        ctx.lineWidth = 1.5;
+      } else {
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
+        ctx.lineWidth = 1;
+      }
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+
+      // Draw beat number at top for enabled beats
+      if (beat.enabled) {
+        ctx.fillStyle = 'rgba(233, 69, 96, 0.9)';
+        ctx.font = (10 * window.devicePixelRatio) + 'px sans-serif';
+        ctx.fillText(i + 1, x + 2, 12 * window.devicePixelRatio);
+      }
+    }
+
+    // Draw playback position
+    if (currentTime !== undefined && currentTime >= 0) {
+      const px = (currentTime / duration) * w;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, h);
+      ctx.stroke();
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    if (originalBuffer) { resizeCanvas(); drawWaveform(); }
+  });
+
+  // Click on canvas to seek
+  canvas.addEventListener('click', e => {
+    if (!originalBuffer) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = x / rect.width;
+    const seekTime = ratio * originalBuffer.duration;
+    if (isPlaying) {
+      stopPlayback();
+      pauseOffset = seekTime;
+      startPlayback();
+    } else {
+      pauseOffset = seekTime;
+      drawWaveform(pauseOffset);
+      updateTimeDisplay(pauseOffset);
+    }
+  });
+
+  // --- Playback ---
+  function startPlayback() {
+    if (!originalBuffer || isPlaying) return;
+
+    if (audioContext.state === 'suspended') audioContext.resume();
+
+    sourceNode = audioContext.createBufferSource();
+    sourceNode.buffer = originalBuffer;
+
+    gainNode = audioContext.createGain();
+    sourceNode.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    // Drum enhancement
+    const drumLevel = parseInt(drumSlider.value) / 100;
+    if (drumLevel > 0) {
+      scheduleDrums(drumLevel);
+    }
+
+    startTime = audioContext.currentTime - pauseOffset;
+    sourceNode.start(0, pauseOffset);
+    isPlaying = true;
+    playBtn.textContent = '暂停';
+
+    sourceNode.onended = () => {
+      if (isPlaying) {
+        isPlaying = false;
+        pauseOffset = 0;
+        playBtn.textContent = '播放';
+        cancelAnimationFrame(animFrameId);
+        drawWaveform(0);
+        updateTimeDisplay(0);
+        progressBar.style.width = '0%';
+        currentBeatIndex = -1;
+        currentBeatIndicator.textContent = '-- / ' + beats.length;
+      }
+    };
+
+    updatePlayback();
+  }
+
+  function stopPlayback() {
+    if (sourceNode) {
+      try { sourceNode.stop(); } catch (e) {}
+      sourceNode.disconnect();
+      sourceNode = null;
+    }
+    if (gainNode) {
+      gainNode.disconnect();
+      gainNode = null;
+    }
+    stopDrums();
+    isPlaying = false;
+    cancelAnimationFrame(animFrameId);
+    playBtn.textContent = '播放';
+  }
+
+  let drumNodes = [];
+
+  function stopDrums() {
+    for (const node of drumNodes) {
+      try { node.stop(); } catch (e) {}
+      try { node.disconnect(); } catch (e) {}
+    }
+    drumNodes = [];
+  }
+
+  function scheduleDrums(level) {
+    stopDrums();
+    const now = audioContext.currentTime;
+    const enabledTimes = getEnabledBeatTimes();
+
+    for (const beatTime of enabledTimes) {
+      const absTime = beatTime - pauseOffset;
+      if (absTime < 0) continue;
+      const when = now + absTime;
+
+      // Kick drum synthesis
+      const osc = audioContext.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(150, when);
+      osc.frequency.exponentialRampToValueAtTime(30, when + 0.1);
+
+      const oscGain = audioContext.createGain();
+      oscGain.gain.setValueAtTime(level * 0.8, when);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, when + 0.15);
+
+      osc.connect(oscGain);
+      oscGain.connect(audioContext.destination);
+      osc.start(when);
+      osc.stop(when + 0.15);
+      drumNodes.push(osc);
+
+      // Noise click for attack
+      const noiseLength = Math.round(audioContext.sampleRate * 0.03);
+      const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseLength; i++) {
+        noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (noiseLength * 0.2));
+      }
+
+      const noiseSrc = audioContext.createBufferSource();
+      noiseSrc.buffer = noiseBuffer;
+      const noiseGain = audioContext.createGain();
+      noiseGain.gain.setValueAtTime(level * 0.3, when);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, when + 0.03);
+
+      noiseSrc.connect(noiseGain);
+      noiseGain.connect(audioContext.destination);
+      noiseSrc.start(when);
+      noiseSrc.stop(when + 0.03);
+      drumNodes.push(noiseSrc);
+    }
+  }
+
+  function findCurrentBeat(currentTime) {
+    // Find the most recent beat at or before currentTime
+    let idx = -1;
+    for (let i = 0; i < beats.length; i++) {
+      if (beats[i].time <= currentTime + 0.05) {
+        idx = i;
+      } else {
+        break;
+      }
+    }
+    return idx;
+  }
+
+  function updatePlayback() {
+    if (!isPlaying) return;
+    const currentTime = audioContext.currentTime - startTime;
+    const duration = originalBuffer.duration;
+
+    if (currentTime >= duration) {
+      stopPlayback();
+      pauseOffset = 0;
+      drawWaveform(0);
+      updateTimeDisplay(0);
+      progressBar.style.width = '0%';
+      return;
+    }
+
+    drawWaveform(currentTime);
+    updateTimeDisplay(currentTime);
+    progressBar.style.width = (currentTime / duration * 100) + '%';
+
+    // Update current beat indicator
+    const beatIdx = findCurrentBeat(currentTime);
+    if (beatIdx !== currentBeatIndex) {
+      highlightBeatRow(beatIdx);
+    }
+
+    animFrameId = requestAnimationFrame(updatePlayback);
+  }
+
+  function updateTimeDisplay(current) {
+    const duration = originalBuffer ? originalBuffer.duration : 0;
+    timeDisplay.textContent = formatTime(current) + ' / ' + formatTime(duration);
+  }
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function formatTimePrecise(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(3);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (isPlaying) {
+      pauseOffset = audioContext.currentTime - startTime;
+      stopPlayback();
+    } else {
+      startPlayback();
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    stopPlayback();
+    pauseOffset = 0;
+    drawWaveform(0);
+    updateTimeDisplay(0);
+    progressBar.style.width = '0%';
+    currentBeatIndex = -1;
+    currentBeatIndicator.textContent = '-- / ' + beats.length;
+  });
+
+  drumSlider.addEventListener('input', () => {
+    drumValue.textContent = drumSlider.value + '%';
+    if (isPlaying) {
+      pauseOffset = audioContext.currentTime - startTime;
+      stopPlayback();
+      startPlayback();
+    }
+  });
+
+  // --- Export ---
+  exportBtn.addEventListener('click', async () => {
+    if (!originalBuffer) return;
+    exportStatus.textContent = '正在导出...';
+    exportBtn.disabled = true;
+
+    const sr = originalBuffer.sampleRate;
+    const length = originalBuffer.length;
+    const numChannels = originalBuffer.numberOfChannels;
+    const offline = new OfflineAudioContext(numChannels, length, sr);
+
+    const src = offline.createBufferSource();
+    src.buffer = originalBuffer;
+    src.connect(offline.destination);
+    src.start(0);
+
+    const drumLevel = parseInt(drumSlider.value) / 100;
+    if (drumLevel > 0) {
+      const enabledTimes = getEnabledBeatTimes();
+      for (const beatTime of enabledTimes) {
+        const osc = offline.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, beatTime);
+        osc.frequency.exponentialRampToValueAtTime(30, beatTime + 0.1);
+
+        const oscGain = offline.createGain();
+        oscGain.gain.setValueAtTime(drumLevel * 0.8, beatTime);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, beatTime + 0.15);
+
+        osc.connect(oscGain);
+        oscGain.connect(offline.destination);
+        osc.start(beatTime);
+        osc.stop(beatTime + 0.15);
+
+        const noiseLength = Math.round(sr * 0.03);
+        const noiseBuffer = offline.createBuffer(1, noiseLength, sr);
+        const noiseData = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseLength; i++) {
+          noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (noiseLength * 0.2));
+        }
+
+        const noiseSrc = offline.createBufferSource();
+        noiseSrc.buffer = noiseBuffer;
+        const noiseGain = offline.createGain();
+        noiseGain.gain.setValueAtTime(drumLevel * 0.3, beatTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, beatTime + 0.03);
+
+        noiseSrc.connect(noiseGain);
+        noiseGain.connect(offline.destination);
+        noiseSrc.start(beatTime);
+        noiseSrc.stop(beatTime + 0.03);
+      }
+    }
+
+    try {
+      const rendered = await offline.startRendering();
+      const wav = audioBufferToWav(rendered);
+      const blob = new Blob([wav], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'enhanced_audio.wav';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      exportStatus.textContent = '导出完成!';
+    } catch (err) {
+      exportStatus.textContent = '导出失败: ' + err.message;
+    }
+    exportBtn.disabled = false;
+  });
+
+  // --- WAV Encoder ---
+  function audioBufferToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const format = 1;
+    const bitDepth = 16;
+
+    const channels = [];
+    for (let i = 0; i < numChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+
+    const numSamples = buffer.length;
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = numSamples * blockAlign;
+    const headerSize = 44;
+
+    const arrayBuffer = new ArrayBuffer(headerSize + dataSize);
+    const view = new DataView(arrayBuffer);
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        let sample = channels[ch][i];
+        sample = Math.max(-1, Math.min(1, sample));
+        sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+        view.setInt16(offset, sample, true);
+        offset += 2;
+      }
+    }
+
+    return arrayBuffer;
+  }
+
+  function writeString(view, offset, str) {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  }
+})();
+</script>
+
+</body>
+</html>
